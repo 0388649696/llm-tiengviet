@@ -48,7 +48,7 @@ E --> F[(Knowledge Graph)]
 
 
 #### Version:
-v1: Knowledge Graph Engine kiểu mới: Mô hình đang ở mức logic phục vụ cho Knowledge Graph
+v1: Knowledge Graph Engine kiểu mới: Mô hình đang ở mức logic phục vụ cho Knowledge Graph, chưa Query Engine, Reasoning, Learning, Hybrid
 
 ## A. LỚP CẤU TRÚC LOGIC:
 
