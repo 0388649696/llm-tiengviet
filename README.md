@@ -65,14 +65,12 @@ Liên kết: là, của, để, với, trong, bằng
 ### L1; Cấu trúc Ý nghĩa
 gồm các **Thành phần** sau:
 ```text
-{
   "thuc_the": null,
   "hanh_dong": null,
-  "doi_tuong": null,
+  [Đối tượng]  thứ mà hành động đang tác động vào, là “đích của hành động”
   "thuoc_tinh": [],
   "boi_canh": null,
   "pham_vi": null
-}
 ```
 
 ### L2; Cấu trúc Hành vi
@@ -268,9 +266,9 @@ xác định đối tượng
 │   │   └── relation_schema.json
 │   │
 │   ├── parsers/              # 🔹 L1 + L2
-│   │   ├── parser_l1.py
-│   │   ├── parser_l2.py
-│   │   └── utils.py
+│   │   ├── parser_l1_l2.py
+│   │   ├── parser_l3.py
+│   │   └── __init__.py
 │   │
 │   ├── concept/              # 🔹 L3
 │   │   ├── extractor.py
@@ -297,6 +295,7 @@ xác định đối tượng
 │   ├── utils/
 │      ├── __init__.py
 │      └── path_utils.py
+│      └── text_utils.py
 │
 ├── llm/                      # (optional)
 │   ├── llama-cli
