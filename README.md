@@ -65,41 +65,24 @@ Liên kết: là, của, để, với, trong, bằng
 ### L1; Cấu trúc Ý nghĩa
 gồm các **Thành phần** sau:
 ```text
-[Chủ thể]
-[Đối tượng]
-[Hành động]
-[Trạng thái]
-[Đánh giá]
-[Định danh]
-[Khái niệm]
-[Thuộc tính]
-[Thông số]
-[Ngữ cảnh]
-[Thời gian]
-[Không gian]
-[Nguyên nhân]
-[Mục đích]
-[Phương thức]
-[Điều kiện]
-[Giả định]
-[So sánh]
-[Liên kết]
+{
+  "thuc_the": null,
+  "hanh_dong": null,
+  "doi_tuong": null,
+  "thuoc_tinh": [],
+  "boi_canh": null,
+  "pham_vi": null
+}
 ```
 
 ### L2; Cấu trúc Hành vi
 gồm các **Thành phần** sau:
 ```text
-[Khẳng định]
-[Phủ định]
-[Điều khiển]
-[Nhận thức]
-[Hỏi]
-[Đồng cảm]
-[Trấn an]
-[Khuyến khích]
-[Gợi ý]
-[Mở hội thoại]
-[Kết thúc mềm]
+[Định danh]   (X là Y)
+[Mô tả]       (nêu đặc điểm)
+[Giải thích]  (có quan hệ logic)
+[So sánh]     (hơn/kém/khác)
+[Khẳng định]  (phát biểu sự thật)
 ```
 ### L3; Cấu trúc Khái niệm
 Khái niệm   → trích ra “điều đang nói tới”
