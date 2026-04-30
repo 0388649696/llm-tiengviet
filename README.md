@@ -248,21 +248,61 @@ xác định đối tượng
 # 2. Chương trình
 #### 📂Thư mục: 
 /anhtu/myapp/
+/anhtu/myapp/
 │
-├── kg/
-│   ├── data/
+├── docker-compose.yml
+│
+├── nginx/
+│   └── nginx.conf
+│
+├── myweb/
+│   └── index.html
+│
+├── nodered/
+│
+├── kg/                        # 🔥 CORE AI SYSTEM
+│
+│   ├── data/                 # dữ liệu tĩnh
 │   │   ├── semantic_lexicon.json
-│   │   └── behavior_lexicon.json
+│   │   ├── behavior_lexicon.json
+│   │   └── stopwords.txt
 │   │
-│   ├── parsers/
+│   ├── schemas/              # schema JSON chuẩn
+│   │   ├── l1_schema.json
+│   │   ├── l2_schema.json
+│   │   ├── concept_schema.json
+│   │   └── relation_schema.json
+│   │
+│   ├── parsers/              # 🔹 L1 + L2
 │   │   ├── parser_l1.py
 │   │   ├── parser_l2.py
 │   │   └── utils.py
 │   │
-│   ├── concept/
-│   ├── relation/
-│   ├── graph/
-│   ├── query/
-│   ├── reasoning/
+│   ├── concept/              # 🔹 L3
+│   │   ├── extractor.py
+│   │   └── normalizer.py
 │   │
-│   └── main.py
+│   ├── relation/             # 🔹 L4
+│   │   ├── extractor.py
+│   │   └── rules.py
+│   │
+│   ├── graph/                # 🔥 GRAPH ENGINE
+│   │   ├── graph_store.py
+│   │   └── graph.json
+│   │
+│   ├── query/                # 🔥 QUERY ENGINE (bước tiếp)
+│   │   └── query_engine.py
+│   │
+│   ├── reasoning/            # 🔥 REASONING (sau này)
+│   │   └── rules.py
+│   │
+│   ├── api/                  # expose ra ngoài
+│   │   └── app.py
+│   │
+│   └── main.py               # chạy pipeline end-to-end
+│
+├── llm/                      # (optional)
+│   ├── llama-cli
+│   └── model.gguf
+│
+└── README.md
