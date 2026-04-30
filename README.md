@@ -239,7 +239,7 @@ xác định đối tượng
 
 # 2. Chương trình
 #### 📂Thư mục: 
-/anhtu/myapp/
+```
 /anhtu/myapp/
 │
 ├── docker-compose.yml
@@ -302,3 +302,4 @@ xác định đối tượng
 │   └── model.gguf
 │
 └── README.md
+```
