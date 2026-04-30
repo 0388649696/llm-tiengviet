@@ -311,6 +311,9 @@ xác định đối tượng
 │   │   └── app.py
 │   │
 │   └── main.py               # chạy pipeline end-to-end
+│   ├── utils/
+│      ├── __init__.py
+│      └── path_utils.py
 │
 ├── llm/                      # (optional)
 │   ├── llama-cli
