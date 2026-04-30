@@ -237,8 +237,19 @@ xác định đối tượng
 đối tượng
  └── PART_OF → ảnh
 ```
+|=> để dựng Graph Engine 
 
 ## B. Thành phần nâng cao:
+| Thành phần | KG truyền thống | Mô hình của tôi      |
+| ---------- | --------------- | -------------------- |
+| Graph      | Schema cố định  | Graph động từ text   |
+| Query      | Cypher / SPARQL | pattern-based        |
+| Reasoning  | logic formal    | rule đơn giản + path |
+| Input      | structured data | natural language     |
+| Mở rộng    | khó             | rất dễ               |
+
+### Graph Engine
+
 ### Query Engine
 
 ### Reasoning
