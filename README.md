@@ -193,7 +193,7 @@ Mình giải thích đơn giản nhé, học máy là một lĩnh vực trong AI
 ```
 
 
-# 💣 Insight quan trọng nhất
+### 💣 Insight quan trọng nhất
 
 Bạn đang xây:
 
@@ -218,5 +218,73 @@ text → trả lời (1 bước)
 text → hiểu → tạo nội dung → làm mềm
 ```
 
----
+### Các kiểu khung cấu trúc tiếng việt phổ biến:
+
+```text
+[Chủ thể] + [Hành động / Trạng thái] + [Bổ sung]
+
+[Chủ thể] + [Trạng thái/Hành động] + [Đối tượng] + [Bổ nghĩa]
+
+```
+### LỚP CẤU TRÚC:
+
+```text
+Chủ thể: mình, tôi, bạn, nó, học máy, docker
+Hành động / Trạng thái: biết, hiểu, là, có, dùng, tạo ra, hoạt động
+Đối tượng: điều gì, cái nà
+y, một mô hình, dữ liệu
+Bổ nghĩa: rồi, rất, khá, khoảng
+Liên kết: là, của, để, với, trong, bằng
+```
+
+### L1; Cấu trúc Ý nghĩa
+gồm các **Thành phần** sau:
+```text
+[Chủ thể]
+[Đối tượng]
+[Hành động]
+[Trạng thái]
+[Đánh giá]
+[Định danh]
+[Khái niệm]
+[Thuộc tính]
+[Thông số]
+[Ngữ cảnh]
+[Thời gian]
+[Không gian]
+[Nguyên nhân]
+[Mục đích]
+[Phương thức]
+[Điều kiện]
+[Giả định]
+[So sánh]
+[Liên kết]
+```
+
+### L2; Cấu trúc Hành vi
+```text
+[Khẳng định]
+[Phủ định]
+[Điều khiển]
+[Nhận thức]
+[Hỏi]
+[Đồng cảm]
+[Trấn an]
+[Khuyến khích]
+[Gợi ý]
+[Mở hội thoại]
+[Kết thúc mềm]
+```
+
+### L3; Cấu trúc Khái niệm
+
+### L4; Cấu trúc Quan hệ
+
+
+
+
+ 
+
+
+
 
