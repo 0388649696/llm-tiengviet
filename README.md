@@ -303,3 +303,7 @@ xác định đối tượng
 │
 └── README.md
 ```
+
+#### Thực hiện:
+- Đang ở bước test python3 -m kg.parsers.parser_l1_l2 "Do dữ liệu lớn nên mô hình khó học"
+- Đang có data json l1, l2.
