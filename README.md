@@ -237,6 +237,24 @@ xác định đối tượng
  └── PART_OF → ảnh
 ```
 
-
-
-
+## 2. Chương trình
+#### 📂Thư mục: 
+/anhtu/myapp/
+│
+├── kg/
+│   ├── data/
+│   │   ├── semantic_lexicon.json
+│   │   └── behavior_lexicon.json
+│   │
+│   ├── parsers/
+│   │   ├── parser_l1.py
+│   │   ├── parser_l2.py
+│   │   └── utils.py
+│   │
+│   ├── concept/
+│   ├── relation/
+│   ├── graph/
+│   ├── query/
+│   ├── reasoning/
+│   │
+│   └── main.py
