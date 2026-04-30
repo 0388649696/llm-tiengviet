@@ -10,7 +10,7 @@ một hệ thống gồm:
 - hành vi ngôn ngữ (đang làm gì với câu)
 - khái niệm (điều đang được nói tới)
 - quan hệ (các khái niệm liên kết với nhau ra sao)
-##### Quy trình hoạt động:
+##### 📌 Quy trình hoạt động:
 ```mermaid
 graph LR
 A(Text) --> B[L1: Semantic]
@@ -20,8 +20,25 @@ C --> D
 D --> E[L4: Relation]
 E --> F[(Knowledge Graph)]
 ```
+#### So sánh với LLM 
+| Tiêu chí            | Mô hình của tôi          | KG Engine truyền thống        |
+| ------------------- | ------------------------ | ----------------------------- |
+| Triết lý            | Từ ngôn ngữ → tri thức   | Từ dữ liệu → tri thức         |
+| Điểm xuất phát      | Text (tự nhiên)          | Database / schema / ontology  |
+| Mức độ tự động      | ✔ Cao (tự trích)         | ❌ Thấp (cần cấu hình)         |
+| Phụ thuộc con người | ✔  Ít                     | ❌ Nhiều (define schema trước) |
+| Cách tạo concept    | Tự động từ text          | Định nghĩa trước              |
+| Cách tạo relation   | Rule + text              | Schema + mapping              |
+| Linh hoạt ngôn ngữ  | ✔ Rất cao                | ❌ Hạn chế                     |
+| Độ chính xác        | ⚠️ Phụ thuộc rule        | ✔ Cao (vì chuẩn hoá trước)    |
+| Giải thích          | ✔ Rõ ràng                | ✔ Rõ ràng                     |
+| Khả năng mở rộng    | ✔ Tự nhiên theo text     | ⚠️ Phải thiết kế schema       |
+| Tính học            | ✔ Có thể học từ feedback | ❌ Ít (truyền thống)           |
+| Tài nguyên          | ✔ Nhẹ                    | ⚠️ Trung bình                 |
 
 
+#### Version:
+v1: Knowledge Graph Engine kiểu mới 
 
 ## LỚP CẤU TRÚC:
 
