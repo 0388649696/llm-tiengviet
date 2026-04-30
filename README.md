@@ -20,6 +20,8 @@ C --> D
 D --> E[L4: Relation]
 E --> F[(Knowledge Graph)]
 ```
+- Mô hình đang ở mức logic phục vụ cho Knowledge Graph
+- 
 #### So sánh với LLM 
 | Tiêu chí            | Mô hình của tôi          | KG Engine truyền thống        |
 | ------------------- | ------------------------ | ----------------------------- |
@@ -36,11 +38,19 @@ E --> F[(Knowledge Graph)]
 | Tính học            | ✔ Có thể học từ feedback | ❌ Ít (truyền thống)           |
 | Tài nguyên          | ✔ Nhẹ                    | ⚠️ Trung bình                 |
 
+| Ưu/nhược           | Mô hình của tôi          | KG Engine truyền thống        |
+| ------------------- | ------------------------ | ----------------------------- |
+| Ưu           | đọc text trực tiếp, không cần schema trước,linh hoạt, dễ mở rộng AI   | chính xác, chuẩn hoá tốt, ổn định production      |
+| nhược           | dễ sai nếu rule chưa tốt,cần normalize mạnh   | khó dùng với text tự nhiên, cần define schema trước, không “hiểu” ngôn ngữ      |
+
+
+
+
 
 #### Version:
-v1: Knowledge Graph Engine kiểu mới 
+v1: Knowledge Graph Engine kiểu mới: Mô hình đang ở mức logic phục vụ cho Knowledge Graph
 
-## LỚP CẤU TRÚC:
+## A. LỚP CẤU TRÚC LOGIC:
 
 ```text
 Chủ thể: mình, tôi, bạn, nó, học máy, docker
