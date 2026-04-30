@@ -238,6 +238,7 @@ xác định đối tượng
  └── PART_OF → ảnh
 ```
 
+## B. Thành phần nâng cao:
 ### Query Engine
 
 ### Reasoning
