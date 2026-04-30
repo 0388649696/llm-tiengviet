@@ -226,7 +226,7 @@ text → hiểu → tạo nội dung → làm mềm
 [Chủ thể] + [Trạng thái/Hành động] + [Đối tượng] + [Bổ nghĩa]
 
 ```
-### LỚP CẤU TRÚC:
+## LỚP CẤU TRÚC:
 
 ```text
 Chủ thể: mình, tôi, bạn, nó, học máy, docker
@@ -262,6 +262,7 @@ gồm các **Thành phần** sau:
 ```
 
 ### L2; Cấu trúc Hành vi
+gồm các **Thành phần** sau:
 ```text
 [Khẳng định]
 [Phủ định]
@@ -275,15 +276,142 @@ gồm các **Thành phần** sau:
 [Mở hội thoại]
 [Kết thúc mềm]
 ```
-
 ### L3; Cấu trúc Khái niệm
+Khái niệm   → trích ra “điều đang nói tới”
+```
+[ENTITY]      (thực thể cụ thể)
+[PROCESS]     (quy trình / hoạt động)
+[METHOD]      (phương pháp / kỹ thuật)
+[PROPERTY]    (thuộc tính / đặc trưng)
+[METRIC]      (thước đo / kết quả)
+[DOMAIN]      (lĩnh vực / phạm vi)
+```
+(*) **Quy tắc**:
+```
+[Danh từ] → Concept
+X là Y → Y là Concept
+X dùng để Y → Y là PROCESS
+..., A, B, C → A/B/C là Concept cùng nhóm
+```
+(*) **Chuẩn hóa**:
+```
+- viết thường
+- bỏ từ dư (cái, việc, quá trình…)
+- gom về dạng ngắn gọn nhất
+```
+ex: "quá trình phân loại ảnh" → "phân loại ảnh"
 
 ### L4; Cấu trúc Quan hệ
+Từ các khái niệm đã trích → nối thành “có nghĩa”
+Quan hệ = liên kết có hướng giữa 2 khái niệm, có loại (type) rõ ràng
+```
+[IS_A]          (định danh / phân loại)
+[PART_OF]       (thuộc về / là phần của)
+[USED_FOR]      (dùng để / mục đích)
+[CAUSES]        (gây ra / dẫn đến)
+[AFFECTS]       (ảnh hưởng)
+[HAS_PROPERTY]  (có thuộc tính)
+[MEASURED_BY]   (được đo bằng)
+[APPLIED_IN]    (được dùng trong lĩnh vực)
+[COMPARES_TO]   (so sánh với)
+[CONTRASTS]     (đối lập / tuy nhiên)
+```
+(*) **Quy tắc**:
+```
+R1 — Định danh
+X là Y  →  X [IS_A] Y
+R2 — Mục đích
+X dùng để Y / nhằm Y  →  X [USED_FOR] Y
+R3 — Thuộc tính
+X có A / X là ... với A  →  X [HAS_PROPERTY] A
+R4 — Thuộc về
+X của Y / X trong Y  →  X [PART_OF] Y
+R5 — Ảnh hưởng / nguyên nhân
+X ảnh hưởng Y  →  X [AFFECTS] Y
+X dẫn đến Y    →  X [CAUSES] Y
+R6 — Đo lường
+X được đo bằng M  →  X [MEASURED_BY] M
+R7 — Ứng dụng
+X được dùng trong D  →  X [APPLIED_IN] D
+R8 — So sánh
+X giống Y / khác Y  →  X [COMPARES_TO] Y
+R9 — Đối lập
+..., tuy nhiên, ...  →  vế1 [CONTRASTS] vế2
+R10 — Liệt kê (tùy chọn)
+A, B, C cùng loại  →  A/B/C [IS_A] (type chung)
+```
+(*) **Chuẩn hóa**:
+```
+- dùng tên concept đã normalize
+- đồng nhất chiều: subject → object
+- gom đồng nghĩa về 1 relation (affect/impact → AFFECTS)
+```
+||===> Knowledge Graph cơ bản
 
+## Demo
+```
+Phân loại ảnh là một bài toán của thị giác máy tính. 
+Mục tiêu của bài toán này là xác định đối tượng trong ảnh. 
+Phương pháp này được sử dụng trong nhận dạng khuôn mặt.
+```
+Bước 1: Trích Khái niệm:
+```
+phân loại ảnh
+bài toán
+thị giác máy tính
+mục tiêu
+xác định đối tượng
+đối tượng
+ảnh
+phương pháp
+nhận dạng khuôn mặt
+```
+👉Rút gọn:
+```
+phân loại ảnh
+thị giác máy tính
+xác định đối tượng
+đối tượng
+ảnh
+nhận dạng khuôn mặt
+```
+Bước 2: Tạo Relation
+```
+Câu 1
+phân loại ảnh là một bài toán của thị giác máy tính
 
+→ relations:
+phân loại ảnh → IS_A → bài toán
+phân loại ảnh → APPLIED_IN → thị giác máy tính
 
+Câu 2
+mục tiêu ... là xác định đối tượng trong ảnh
 
- 
+→ relations:
+phân loại ảnh → USED_FOR → xác định đối tượng
+xác định đối tượng → AFFECTS → đối tượng
+đối tượng → PART_OF → ảnh
+
+Câu 3
+phương pháp ... được sử dụng trong nhận dạng khuôn mặt
+
+→ relations:
+phân loại ảnh → APPLIED_IN → nhận dạng khuôn mặt
+```
+✅ Kết quả: 
+```
+phân loại ảnh
+ ├── IS_A → bài toán
+ ├── APPLIED_IN → thị giác máy tính
+ ├── USED_FOR → xác định đối tượng
+ └── APPLIED_IN → nhận dạng khuôn mặt
+
+xác định đối tượng
+ └── AFFECTS → đối tượng
+
+đối tượng
+ └── PART_OF → ảnh
+```
 
 
 
