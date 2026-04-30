@@ -11,12 +11,15 @@ một hệ thống gồm:
 - khái niệm (điều đang được nói tới)
 - quan hệ (các khái niệm liên kết với nhau ra sao)
 ##### Quy trình hoạt động:
+```mermaid
+graph LR
 A(Text) --> B[L1: Semantic]
 A --> C[L2: Behavior]
 B --> D[L3: Concept]
 C --> D
 D --> E[L4: Relation]
 E --> F[(Knowledge Graph)]
+```
 
 
 
@@ -169,7 +172,7 @@ xác định đối tượng
 ảnh
 nhận dạng khuôn mặt
 ```
-Bước 2: Tạo Relation
+Bước 2: Tạo Quan hệ
 ```
 Câu 1
 phân loại ảnh là một bài toán của thị giác máy tính
