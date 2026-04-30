@@ -50,6 +50,7 @@ E --> F[(Knowledge Graph)]
 #### Version:
 v1: Knowledge Graph Engine kiểu mới: Mô hình đang ở mức logic phục vụ cho Knowledge Graph, chưa Query Engine, Reasoning, Learning, Hybrid
 
+# 1. Kiến trúc tổng quát
 ## A. LỚP CẤU TRÚC LOGIC:
 
 ```text
@@ -172,7 +173,7 @@ A, B, C cùng loại  →  A/B/C [IS_A] (type chung)
 ```
 ||===> Knowledge Graph cơ bản
 
-## Demo
+### Demo
 ```
 Phân loại ảnh là một bài toán của thị giác máy tính. 
 Mục tiêu của bài toán này là xác định đối tượng trong ảnh. 
@@ -237,7 +238,13 @@ xác định đối tượng
  └── PART_OF → ảnh
 ```
 
-## 2. Chương trình
+### Query Engine
+
+### Reasoning
+
+### Learning
+
+# 2. Chương trình
 #### 📂Thư mục: 
 /anhtu/myapp/
 │
