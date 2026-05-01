@@ -215,7 +215,25 @@ emty
 
 #### Giai đoạn hiện tại:
 v1
-- Đang ở bước test python3 -m kg.parsers.parser_l1_l2 "Do dữ liệu chưa đủ nên mô hình khó học"
-- Đang có data json l1, l2. Cần thêm dữ liệu từ để đạt được bách khoa trong tiếng việt.
-- Mục tiêu Xây một hệ hiểu văn bản tiếng Việt. không dựa xác suất (LLM) mà dựa cấu trúc tri thức
-- 
+- Đang ở bước test 
+- Đang đến step1
+```
+🔥 STEP 1 (quan trọng nhất)
+
+👉 normalize pattern
+
+X hiểu dữ liệu X → X hiểu Y
+🔥 STEP 2
+
+👉 detect phrase (chunking)
+
+"dữ liệu lớn" = 1 unit
+🔥 STEP 3
+
+👉 clustering verb
+
+hiểu ~ xử lý ~ phân tích
+🔥 STEP 4
+
+👉 logic (if-then)
+```
