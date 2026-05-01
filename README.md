@@ -303,6 +303,8 @@ xác định đối tượng
 └── README.md
 ```
 
-#### Thực hiện:
-- Đang ở bước test python3 -m kg.parsers.parser_l1_l2 "Do dữ liệu lớn nên mô hình khó học"
+#### Giai đoạn hiện tại:
+v1
+- Đang ở bước test python3 -m kg.parsers.parser_l1_l2 "Do dữ liệu chưa đủ nên mô hình khó học"
 - Đang có data json l1, l2.
+- Mục tiêu Xây một hệ hiểu văn bản tiếng Việt. không dựa xác suất (LLM) mà dựa cấu trúc tri thức
