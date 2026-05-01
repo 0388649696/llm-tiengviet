@@ -306,5 +306,6 @@ xác định đối tượng
 #### Giai đoạn hiện tại:
 v1
 - Đang ở bước test python3 -m kg.parsers.parser_l1_l2 "Do dữ liệu chưa đủ nên mô hình khó học"
-- Đang có data json l1, l2.
+- Đang có data json l1, l2. Cần thêm dữ liệu từ để đạt được bách khoa trong tiếng việt.
 - Mục tiêu Xây một hệ hiểu văn bản tiếng Việt. không dựa xác suất (LLM) mà dựa cấu trúc tri thức
+- 
