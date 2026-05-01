@@ -2,7 +2,7 @@
 ## Giới thiệu mô hình
 Mô hình này không tiếp cận ngôn ngữ theo cách truyền thống (chỉ sinh câu),
 mà đi theo hướng:
-**Hiểu văn bản = Tách cấu trúc → Trích khái niệm → Nối quan hệ → Tạo tri thức**
+**Text → Experience → Pattern → Role → Graph**
 
 Thay vì coi văn bản là chuỗi chữ, mô hình coi văn bản là:
 một hệ thống gồm:
