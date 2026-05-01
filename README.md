@@ -265,9 +265,8 @@ xác định đối tượng
 │   │   ├── concept_schema.json
 │   │   └── relation_schema.json
 │   │
-│   ├── parsers/              # 🔹 L1 + L2
-│   │   ├── parser_l1_l2.py
-│   │   ├── parser_l3.py
+│   ├── parsers/              
+│   │   ├── parser_l1_l2.py  # 🔹 L1 + L2
 │   │   └── __init__.py
 │   │
 │   ├── concept/              # 🔹 L3
