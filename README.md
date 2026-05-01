@@ -14,7 +14,7 @@ một hệ thống gồm:
 ```mermaid
 graph LR
 A(Text)
-A --> B[Weak Parser (Rule nhẹ)]
+A --> B[Weak Parser - Rule nhẹ]
 A --> C[Experience Memory]
 
 C --> D[Pattern Discovery]
