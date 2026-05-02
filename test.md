@@ -1,92 +1,94 @@
-Dưới đây là **pipeline thực hành hoàn chỉnh** mình khuyên dùng lúc này: nhẹ, hiệu quả, không tự build lại mọi thứ, nhưng vẫn giữ lõi riêng của bạn.
-
-Mình chọn model chính:
-
-```text
-bkai-foundation-models/vietnamese-bi-encoder
-```
-
-Lý do: là sentence-transformers cho tiếng Việt, output vector 768 chiều, phù hợp semantic search / clustering, nhẹ hơn các model BGE-M3 0.6B. ([Hugging Face][1])
-Nếu máy bạn khỏe hơn, có thể đổi sang `AITeamVN/Vietnamese_Embedding`, model fine-tune từ BGE-M3 cho tiếng Việt, sequence length 2048, output 1024 chiều nhưng nặng hơn. ([Hugging Face][2])
+Dưới đây là **pipeline semantic search hoàn chỉnh (production-ready, gọn nhưng đúng chuẩn)**. Thiết kế này tối ưu cho **document / knowledge search**, dễ scale, dễ gắn vào API.
 
 ---
 
-# Pipeline thực hành
+# 🧠 1. Pipeline tổng thể
 
 ```mermaid
 graph LR
-A[Input câu tiếng Việt] --> B[Embedding Layer]
-B --> C[Memory Store]
-C --> D[Pattern Candidate]
-D --> E[Validation Layer]
-E --> F[State Machine]
-F --> G[Knowledge Store]
-G --> H[Inference]
+A[Raw Documents] --> B[Preprocessing + Chunking]
+B --> C[Embedding Batch]
+C --> D[Vector Index (FAISS)]
+Q[User Query] --> E[Query Processing]
+E --> F[Query Embedding]
+F --> G[Vector Search Top-K]
+G --> H[Re-Ranking]
+H --> I[Filtering]
+I --> J[Final Results]
 ```
 
 ---
 
-# 1. Cài thư viện
-
-```bash
-cd ~/myapp
-python3 -m venv venv
-source venv/bin/activate
-
-pip install sentence-transformers numpy scikit-learn
-```
-
----
-
-# 2. Cấu trúc thư mục
+# ⚙️ 2. Kiến trúc thư mục
 
 ```bash
 kg/
-├── main.py
-├── data/
-│   ├── train_cases.jsonl
-│   └── eval_cases.jsonl
 ├── embedding/
-│   ├── __init__.py
 │   └── embedding_engine.py
-├── memory/
-│   ├── __init__.py
-│   └── memory_store.py
-├── validation/
-│   ├── __init__.py
-│   └── validation_gate.py
-├── state/
-│   ├── __init__.py
-│   └── state_machine.py
-├── knowledge/
-│   ├── __init__.py
-│   └── knowledge_store.py
-└── utils/
-    ├── __init__.py
-    └── jsonl_utils.py
-```
-
-Tạo nhanh:
-
-```bash
-mkdir -p kg/{data,embedding,memory,validation,state,knowledge,utils}
-touch kg/__init__.py
-touch kg/{embedding,memory,validation,state,knowledge,utils}/__init__.py
+├── preprocess/
+│   └── text_cleaner.py
+├── chunking/
+│   └── chunker.py
+├── vectorstore/
+│   └── faiss_store.py
+├── retriever/
+│   └── retriever.py
+├── reranker/
+│   └── reranker.py
+├── pipeline/
+│   └── search_pipeline.py
+└── main.py
 ```
 
 ---
 
-# 3. `kg/embedding/embedding_engine.py`
+# 🧩 3. Các layer (code cốt lõi)
+
+---
+
+## 🔹 (1) Preprocessing
 
 ```python
-from sentence_transformers import SentenceTransformer
-import numpy as np
+# preprocess/text_cleaner.py
 
+import re
+
+def clean_text(text: str) -> str:
+    text = text.lower()
+    text = re.sub(r"[^\w\s]", " ", text)
+    text = re.sub(r"\s+", " ", text).strip()
+    return text
+```
+
+---
+
+## 🔹 (2) Chunking
+
+```python
+# chunking/chunker.py
+
+def chunk_text(text: str, max_len=200):
+    words = text.split()
+    chunks = []
+
+    for i in range(0, len(words), max_len):
+        chunk = " ".join(words[i:i+max_len])
+        chunks.append(chunk)
+
+    return chunks
+```
+
+---
+
+## 🔹 (3) Embedding (giữ từ hệ cũ)
+
+```python
+# embedding/embedding_engine.py
+
+from sentence_transformers import SentenceTransformer
 
 MODEL_NAME = "bkai-foundation-models/vietnamese-bi-encoder"
-
 _model = None
-
 
 def get_model():
     global _model
@@ -94,296 +96,262 @@ def get_model():
         _model = SentenceTransformer(MODEL_NAME)
     return _model
 
-
-def encode_text(text: str) -> list[float]:
+def encode_batch(texts):
     model = get_model()
-    vec = model.encode(text, normalize_embeddings=True)
-    return vec.tolist()
-
-
-def cosine(a: list[float], b: list[float]) -> float:
-    va = np.array(a)
-    vb = np.array(b)
-    return float(np.dot(va, vb))
+    return model.encode(texts, normalize_embeddings=True)
 ```
 
 ---
 
-# 4. `kg/utils/jsonl_utils.py`
+## 🔹 (4) Vector Store (FAISS)
 
 ```python
-import json
-from pathlib import Path
+# vectorstore/faiss_store.py
+
+import faiss
+import numpy as np
 
 
-def read_jsonl(path: str):
-    p = Path(path)
-    if not p.exists():
-        return []
+class FaissStore:
+    def __init__(self, dim=768):
+        self.index = faiss.IndexFlatIP(dim)
+        self.texts = []
 
-    rows = []
-    with open(p, "r", encoding="utf-8") as f:
-        for line in f:
-            line = line.strip()
-            if line:
-                rows.append(json.loads(line))
-    return rows
+    def add(self, vectors, texts):
+        vecs = np.array(vectors).astype("float32")
+        self.index.add(vecs)
+        self.texts.extend(texts)
 
+    def search(self, query_vec, top_k=10):
+        q = np.array([query_vec]).astype("float32")
+        scores, ids = self.index.search(q, top_k)
 
-def append_jsonl(path: str, item: dict):
-    p = Path(path)
-    p.parent.mkdir(parents=True, exist_ok=True)
+        results = []
+        for i, idx in enumerate(ids[0]):
+            if idx < len(self.texts):
+                results.append({
+                    "text": self.texts[idx],
+                    "score": float(scores[0][i])
+                })
 
-    with open(p, "a", encoding="utf-8") as f:
-        f.write(json.dumps(item, ensure_ascii=False) + "\n")
+        return results
 ```
 
 ---
 
-# 5. `kg/memory/memory_store.py`
+## 🔹 (5) Retriever
 
 ```python
-from pathlib import Path
-from kg.utils.jsonl_utils import append_jsonl, read_jsonl
-from kg.embedding.embedding_engine import encode_text
+# retriever/retriever.py
 
+from kg.embedding.embedding_engine import encode_batch
 
-MEMORY_PATH = "kg/memory/memory.jsonl"
-
-
-def add_memory(text: str, source: str = "manual"):
-    item = {
-        "text": text,
-        "source": source,
-        "vector": encode_text(text)
-    }
-
-    append_jsonl(MEMORY_PATH, item)
-    return item
-
-
-def load_memory():
-    return read_jsonl(MEMORY_PATH)
+def retrieve(query, store, top_k=20):
+    vec = encode_batch([query])[0]
+    return store.search(vec, top_k)
 ```
 
 ---
 
-# 6. `kg/validation/validation_gate.py`
+## 🔹 (6) Re-ranker
 
 ```python
-from kg.embedding.embedding_engine import cosine
+# reranker/reranker.py
 
+def rerank(query, candidates):
+    q_words = set(query.split())
+    results = []
 
-def semantic_score(text: str, memory_item: dict, vector: list[float]) -> float:
-    return cosine(vector, memory_item["vector"])
+    for item in candidates:
+        score = item["score"]
 
+        overlap = sum(1 for w in q_words if w in item["text"])
+        score += overlap * 0.02
 
-def validate_understanding(text: str, vector: list[float], memory: list[dict]):
-    if not memory:
-        return {
-            "verdict": "BIET",
-            "score": 0.0,
-            "nearest": []
-        }
-
-    scored = []
-    for item in memory:
-        sim = semantic_score(text, item, vector)
-        scored.append({
+        results.append({
             "text": item["text"],
-            "score": round(sim, 4)
+            "score": score
         })
 
-    scored = sorted(scored, key=lambda x: x["score"], reverse=True)
-    top = scored[:5]
-    best = top[0]["score"]
-
-    if best >= 0.82:
-        verdict = "HIEU"
-    elif best >= 0.68:
-        verdict = "THONG"
-    else:
-        verdict = "BIET"
-
-    return {
-        "verdict": verdict,
-        "score": round(best, 4),
-        "nearest": top
-    }
+    return sorted(results, key=lambda x: x["score"], reverse=True)
 ```
 
 ---
 
-# 7. `kg/state/state_machine.py`
+## 🔹 (7) Filter
 
 ```python
-STATE_RANK = {
-    "BIET": 1,
-    "THONG": 2,
-    "HIEU": 3,
-    "THAU": 4
-}
+# pipeline/filter.py
 
-
-def choose_state(validation_result: dict):
-    return validation_result["verdict"]
+def filter_results(results, threshold=0.5):
+    return [r for r in results if r["score"] >= threshold]
 ```
 
 ---
 
-# 8. `kg/knowledge/knowledge_store.py`
+## 🔹 (8) Pipeline chính
 
 ```python
-from kg.utils.jsonl_utils import append_jsonl, read_jsonl
+# pipeline/search_pipeline.py
 
-KNOWLEDGE_PATH = "kg/knowledge/knowledge.jsonl"
-
-
-def add_knowledge(text: str, state: str, score: float, evidence: list[dict]):
-    item = {
-        "text": text,
-        "state": state,
-        "score": score,
-        "evidence": evidence
-    }
-
-    append_jsonl(KNOWLEDGE_PATH, item)
-    return item
+from kg.retriever.retriever import retrieve
+from kg.reranker.reranker import rerank
+from kg.pipeline.filter import filter_results
 
 
-def load_knowledge():
-    return read_jsonl(KNOWLEDGE_PATH)
+def search(query, store):
+    candidates = retrieve(query, store, top_k=20)
+
+    reranked = rerank(query, candidates)
+
+    filtered = filter_results(reranked)
+
+    return filtered[:5]
 ```
 
 ---
 
-# 9. `kg/main.py`
+# 🚀 4. Index dữ liệu (quan trọng)
 
 ```python
-import sys
-import json
+# main.py (index phase)
 
-from kg.embedding.embedding_engine import encode_text
-from kg.memory.memory_store import add_memory, load_memory
-from kg.validation.validation_gate import validate_understanding
-from kg.state.state_machine import choose_state
-from kg.knowledge.knowledge_store import add_knowledge
+from kg.preprocess.text_cleaner import clean_text
+from kg.chunking.chunker import chunk_text
+from kg.embedding.embedding_engine import encode_batch
+from kg.vectorstore.faiss_store import FaissStore
 
+store = FaissStore()
 
-def run(text: str):
-    memory = load_memory()
-    vector = encode_text(text)
+documents = [
+    "AI xử lý dữ liệu lớn trong doanh nghiệp",
+    "Machine learning áp dụng vào big data",
+    "Hệ thống phân tích dữ liệu quy mô lớn"
+]
 
-    validation = validate_understanding(text, vector, memory)
-    state = choose_state(validation)
+all_chunks = []
 
-    memory_item = add_memory(text)
+for doc in documents:
+    clean = clean_text(doc)
+    chunks = chunk_text(clean)
+    all_chunks.extend(chunks)
 
-    knowledge_item = None
-    if state in ["HIEU", "THAU"]:
-        knowledge_item = add_knowledge(
-            text=text,
-            state=state,
-            score=validation["score"],
-            evidence=validation["nearest"]
-        )
+vectors = encode_batch(all_chunks)
 
-    return {
-        "input": text,
-        "state": state,
-        "validation": validation,
-        "saved_memory": {
-            "text": memory_item["text"],
-            "vector_dim": len(memory_item["vector"])
-        },
-        "saved_knowledge": knowledge_item
-    }
-
-
-def main():
-    if len(sys.argv) < 2:
-        print('Usage: python3 -m kg.main "câu tiếng Việt"')
-        return
-
-    text = " ".join(sys.argv[1:])
-    result = run(text)
-
-    print(json.dumps(result, ensure_ascii=False, indent=2))
-
-
-if __name__ == "__main__":
-    main()
+store.add(vectors, all_chunks)
 ```
 
 ---
 
-# 10. Test thực tế
+# 🔍 5. Query
 
-Reset:
+```python
+# main.py (search phase)
 
-```bash
-rm -f kg/memory/memory.jsonl
-rm -f kg/knowledge/knowledge.jsonl
+from kg.pipeline.search_pipeline import search
+
+query = "xử lý dữ liệu lớn"
+results = search(query, store)
+
+for r in results:
+    print(r)
 ```
-
-Nạp vài câu:
-
-```bash
-python3 -m kg.main "LLM hiểu dữ liệu lớn"
-python3 -m kg.main "AI xử lý dữ liệu quy mô lớn"
-python3 -m kg.main "Mô hình học từ dữ liệu lớn"
-```
-
-Test câu mới:
-
-```bash
-python3 -m kg.main "Hệ thống nắm bắt thông tin quy mô lớn"
-```
-
-Nếu nearest score cao, nó sẽ lên `THONG` hoặc `HIEU`.
 
 ---
 
-# Ý nghĩa kết quả
+# ⚠️ 6. Những thứ BẮT BUỘC nếu chạy thật
 
-Output không nói “tôi chắc chắn hiểu”. Nó nói:
+## 🔥 Persist index
 
-```json
-{
-  "state": "HIEU",
-  "score": 0.84,
-  "nearest": [
-    {
-      "text": "AI xử lý dữ liệu quy mô lớn",
-      "score": 0.86
-    }
-  ]
-}
+```python
+faiss.write_index(store.index, "index.faiss")
 ```
 
-Tức là hệ hiểu theo kiểu:
+Load lại:
+
+```python
+store.index = faiss.read_index("index.faiss")
+```
+
+---
+
+## 🔥 Batch insert (KHÔNG loop từng câu)
+
+```python
+encode_batch(list_texts)
+```
+
+---
+
+## 🔥 Deduplicate trước khi add
+
+---
+
+## 🔥 Metadata (rất quan trọng)
+
+Sửa:
+
+```python
+self.texts = []
+```
+
+→
+
+```python
+self.data = [
+  {
+    "text": "...",
+    "doc_id": "...",
+    "source": "..."
+  }
+]
+```
+
+---
+
+# 🧠 7. Version production chuẩn hơn (nâng cấp)
+
+## Level 2:
+
+* BM25 + Vector (Hybrid search)
+* Redis cache query
+* Pagination
+
+## Level 3:
+
+* Qdrant / Weaviate
+* Cross-encoder reranker
+* Multi-language
+
+---
+
+# 🔥 8. Tóm tắt
+
+Pipeline chuẩn:
 
 ```text
-Câu mới gần nghĩa với những trải nghiệm đã học.
-```
+Document → Clean → Chunk → Embed → FAISS index
 
-Đây là bước đầu đúng hơn rất nhiều so với tự chunk/rule.
+Query → Embed → Top-K → Re-rank → Filter → Result
+```
 
 ---
 
-# Tóm tắt
+# 🎯 Kết luận
 
-Pipeline này:
+Đây là phiên bản:
 
-```text
-Không tự build tokenizer
-Không tự chunk
-Không viết lexicon
-Dùng model nhỏ làm semantic sensor
-CLE giữ vai trò memory + validation + state + knowledge
-```
+* ✔ Đúng chuẩn industry
+* ✔ Scale được
+* ✔ Thay thế hoàn toàn pipeline cũ
+* ✔ Có thể gắn API ngay
 
-Đây là bản thực hành tốt nhất để bạn bắt đầu lại sạch.
+---
 
-[1]: https://huggingface.co/bkai-foundation-models/vietnamese-bi-encoder?utm_source=chatgpt.com "bkai-foundation-models/vietnamese-bi-encoder"
-[2]: https://huggingface.co/AITeamVN/Vietnamese_Embedding?utm_source=chatgpt.com "AITeamVN/Vietnamese_Embedding"
+Nếu cần bước tiếp theo:
+
+* build API (FastAPI)
+* gắn vào Nginx + Docker
+* hoặc nối vào chatbot (RAG)
+
+→ chỉ cần nói rõ use-case, sẽ thiết kế tiếp đúng hướng.
