@@ -1,357 +1,300 @@
-Dưới đây là **pipeline semantic search hoàn chỉnh (production-ready, gọn nhưng đúng chuẩn)**. Thiết kế này tối ưu cho **document / knowledge search**, dễ scale, dễ gắn vào API.
+Dưới đây là **bộ nhãn tối thiểu (schema)** đủ để ông bắt đầu parse + suy luận cơ bản, và **quy trình tạo ~1000 câu “vàng” nhanh (semi-auto)** để huấn luyện/fine-tune.
 
 ---
 
-# 🧠 1. Pipeline tổng thể
+# 🧠 1) Bộ nhãn tối thiểu cho tiếng Việt (MVP)
+
+## 1.1. Nhãn cấp câu (Semantic Roles)
+
+Chỉ cần 6 nhãn lõi:
+
+```text
+SUBJECT    (A)     — chủ thể
+ACTION     (V)     — hành động / quan hệ
+OBJECT     (B)     — đối tượng
+ATTR       (Attr)  — thuộc tính (màu, trạng thái…)
+TIME       (T)     — thời gian
+LOC        (L)     — nơi chốn
+```
+
+### Ví dụ
+
+```text
+“Mèo đen đang ăn cá trong sân.”
+→ SUBJECT: “mèo đen”
+→ ACTION:  “đang ăn”
+→ OBJECT:  “cá”
+→ LOC:     “trong sân”
+```
+
+---
+
+## 1.2. Chuẩn hoá quan hệ (Relation set)
+
+Giữ **8 quan hệ chuẩn** (đủ cho giai đoạn đầu):
+
+```text
+IS_A       (là)
+HAS        (có / sở hữu)
+NEED       (cần / phải)
+ACTION     (động từ chung)
+CAUSE      (gây ra / dẫn đến)
+USED_FOR   (dùng để)
+PART_OF    (thuộc / là phần của)
+STATE      (trạng thái)
+```
+
+### Mapping ví dụ
+
+```text
+“là”         → IS_A
+“có”         → HAS
+“cần”        → NEED
+“ăn / chạy”  → ACTION
+```
+
+---
+
+## 1.3. Nhãn cấu trúc logic (bắt buộc cho suy luận)
+
+```text
+NEGATION    (không)
+CONDITION   (nếu… thì…)
+COREF       (nó, họ…)
+```
+
+### Ví dụ
+
+```text
+“Nếu mèo đói thì nó cần ăn.”
+
+→ CONDITION:
+   IF:  (mèo, STATE, đói)
+   THEN:(mèo, NEED, ăn)
+
+→ COREF:
+   “nó” = “mèo”
+```
+
+---
+
+## 1.4. Format JSON chuẩn (dùng luôn)
+
+```json
+{
+  "text": "Mèo đang ăn cá trong sân.",
+  "roles": {
+    "subject": "mèo",
+    "action": "ăn",
+    "object": "cá",
+    "location": "trong sân"
+  },
+  "relation": {
+    "type": "ACTION"
+  },
+  "logic": {
+    "negation": false,
+    "condition": null
+  }
+}
+```
+
+---
+
+# ⚙️ 2) Tạo 1000 câu “vàng” nhanh (semi-auto)
+
+## Mục tiêu
+
+* 1000–3000 câu
+* có nhãn SUBJECT/ACTION/OBJECT (+ optional)
+* đủ để fine-tune parser nhỏ
+
+---
+
+## 2.1. Nguồn dữ liệu nhanh
+
+* Wikipedia tiếng Việt (đoạn mô tả)
+* báo (vnexpress, dantri)
+* tài liệu học (PDF → text)
+
+---
+
+## 2.2. Bước 1: Tự sinh nhãn thô (auto label)
+
+Dùng parser có sẵn:
+
+* underthesea / VnCoreNLP / Stanza
+
+### Code skeleton
+
+```python
+def auto_label(sentence):
+    # giả lập đơn giản
+    words = sentence.split()
+
+    subject = words[0]
+    action = words[1] if len(words) > 1 else ""
+    obj = " ".join(words[2:]) if len(words) > 2 else ""
+
+    return {
+        "subject": subject,
+        "action": action,
+        "object": obj
+    }
+```
+
+→ Đây là “nhãn thô”, chưa chính xác.
+
+---
+
+## 2.3. Bước 2: Lọc câu dễ (cực quan trọng)
+
+Chỉ giữ câu dạng:
+
+```text
+A là B
+A có B
+A động từ B
+```
+
+Regex ví dụ:
+
+```python
+def is_simple_sentence(s):
+    return any(x in s for x in [" là ", " có ", " ăn ", " dùng ", " cần "])
+```
+
+→ Giảm 10000 câu → còn ~2000 câu “dễ gán”
+
+---
+
+## 2.4. Bước 3: Sửa nhanh bằng người (human-in-the-loop)
+
+Dùng file JSONL:
+
+```json
+{"text": "...", "subject": "...", "action": "...", "object": "..."}
+```
+
+Người sửa:
+
+* mỗi câu 3–5 giây
+* 1000 câu ≈ 1–2 giờ
+
+---
+
+## 2.5. Bước 4: Tăng tốc bằng LLM (semi-auto)
+
+Dùng ChatGPT hoặc model local:
+
+Prompt:
+
+```text
+Trích subject, action, object từ câu:
+“Mèo đang ăn cá trong sân”
+
+Trả về JSON:
+{
+  "subject": "",
+  "action": "",
+  "object": ""
+}
+```
+
+→ Sau đó người chỉ cần **duyệt lại**
+
+---
+
+## 2.6. Bước 5: Tạo thêm dữ liệu bằng template (rất nhanh)
+
+Template:
+
+```text
+{A} là {B}
+{A} có {B}
+{A} cần {B}
+{A} dùng để {B}
+```
+
+Sinh tự động:
+
+```python
+entities = ["mèo", "chó", "người", "cây"]
+objects = ["thức ăn", "nước", "lá", "chuột"]
+
+data = []
+for e in entities:
+    for o in objects:
+        data.append(f"{e} cần {o}")
+```
+
+→ thêm vài trăm câu “sạch 100%”
+
+---
+
+# 🚀 3) Pipeline hoàn chỉnh tạo dataset
 
 ```mermaid
 graph LR
-A[Raw Documents] --> B[Preprocessing + Chunking]
-B --> C[Embedding Batch]
-C --> D[Vector Index - FAISS]
-Q[User Query] --> E[Query Processing]
-E --> F[Query Embedding]
-F --> G[Vector Search Top-K]
-G --> H[Re-Ranking]
-H --> I[Filtering]
-I --> J[Final Results]
+A[Raw text] --> B[Filter câu đơn giản]
+B --> C[Auto label]
+C --> D[LLM refine]
+D --> E[Human sửa nhanh]
+E --> F[Dataset vàng]
+F --> G[Fine-tune parser]
 ```
 
 ---
 
-# ⚙️ 2. Kiến trúc thư mục
+# 🎯 4) Quy mô khởi động hợp lý
 
-```bash
-kg/
-├── embedding/
-│   └── embedding_engine.py
-├── preprocess/
-│   └── text_cleaner.py
-├── chunking/
-│   └── chunker.py
-├── vectorstore/
-│   └── faiss_store.py
-├── retriever/
-│   └── retriever.py
-├── reranker/
-│   └── reranker.py
-├── pipeline/
-│   └── search_pipeline.py
-└── main.py
-```
+| Mức       | Số câu    | Mục tiêu         |
+| --------- | --------- | ---------------- |
+| MVP       | 300–500   | test pipeline    |
+| Khởi động | 1000–1500 | train parser nhỏ |
+| Tốt       | 3000+     | ổn định          |
 
 ---
 
-# 🧩 3. Các layer (code cốt lõi)
+# 🧠 5) Insight quan trọng
 
----
-
-## 🔹 (1) Preprocessing
-
-```python
-# preprocess/text_cleaner.py
-
-import re
-
-def clean_text(text: str) -> str:
-    text = text.lower()
-    text = re.sub(r"[^\w\s]", " ", text)
-    text = re.sub(r"\s+", " ", text).strip()
-    return text
-```
-
----
-
-## 🔹 (2) Chunking
-
-```python
-# chunking/chunker.py
-
-def chunk_text(text: str, max_len=200):
-    words = text.split()
-    chunks = []
-
-    for i in range(0, len(words), max_len):
-        chunk = " ".join(words[i:i+max_len])
-        chunks.append(chunk)
-
-    return chunks
-```
-
----
-
-## 🔹 (3) Embedding (giữ từ hệ cũ)
-
-```python
-# embedding/embedding_engine.py
-
-from sentence_transformers import SentenceTransformer
-
-MODEL_NAME = "bkai-foundation-models/vietnamese-bi-encoder"
-_model = None
-
-def get_model():
-    global _model
-    if _model is None:
-        _model = SentenceTransformer(MODEL_NAME)
-    return _model
-
-def encode_batch(texts):
-    model = get_model()
-    return model.encode(texts, normalize_embeddings=True)
-```
-
----
-
-## 🔹 (4) Vector Store (FAISS)
-
-```python
-# vectorstore/faiss_store.py
-
-import faiss
-import numpy as np
-
-
-class FaissStore:
-    def __init__(self, dim=768):
-        self.index = faiss.IndexFlatIP(dim)
-        self.texts = []
-
-    def add(self, vectors, texts):
-        vecs = np.array(vectors).astype("float32")
-        self.index.add(vecs)
-        self.texts.extend(texts)
-
-    def search(self, query_vec, top_k=10):
-        q = np.array([query_vec]).astype("float32")
-        scores, ids = self.index.search(q, top_k)
-
-        results = []
-        for i, idx in enumerate(ids[0]):
-            if idx < len(self.texts):
-                results.append({
-                    "text": self.texts[idx],
-                    "score": float(scores[0][i])
-                })
-
-        return results
-```
-
----
-
-## 🔹 (5) Retriever
-
-```python
-# retriever/retriever.py
-
-from kg.embedding.embedding_engine import encode_batch
-
-def retrieve(query, store, top_k=20):
-    vec = encode_batch([query])[0]
-    return store.search(vec, top_k)
-```
-
----
-
-## 🔹 (6) Re-ranker
-
-```python
-# reranker/reranker.py
-
-def rerank(query, candidates):
-    q_words = set(query.split())
-    results = []
-
-    for item in candidates:
-        score = item["score"]
-
-        overlap = sum(1 for w in q_words if w in item["text"])
-        score += overlap * 0.02
-
-        results.append({
-            "text": item["text"],
-            "score": score
-        })
-
-    return sorted(results, key=lambda x: x["score"], reverse=True)
-```
-
----
-
-## 🔹 (7) Filter
-
-```python
-# pipeline/filter.py
-
-def filter_results(results, threshold=0.5):
-    return [r for r in results if r["score"] >= threshold]
-```
-
----
-
-## 🔹 (8) Pipeline chính
-
-```python
-# pipeline/search_pipeline.py
-
-from kg.retriever.retriever import retrieve
-from kg.reranker.reranker import rerank
-from kg.pipeline.filter import filter_results
-
-
-def search(query, store):
-    candidates = retrieve(query, store, top_k=20)
-
-    reranked = rerank(query, candidates)
-
-    filtered = filter_results(reranked)
-
-    return filtered[:5]
-```
-
----
-
-# 🚀 4. Index dữ liệu (quan trọng)
-
-```python
-# main.py (index phase)
-
-from kg.preprocess.text_cleaner import clean_text
-from kg.chunking.chunker import chunk_text
-from kg.embedding.embedding_engine import encode_batch
-from kg.vectorstore.faiss_store import FaissStore
-
-store = FaissStore()
-
-documents = [
-    "AI xử lý dữ liệu lớn trong doanh nghiệp",
-    "Machine learning áp dụng vào big data",
-    "Hệ thống phân tích dữ liệu quy mô lớn"
-]
-
-all_chunks = []
-
-for doc in documents:
-    clean = clean_text(doc)
-    chunks = chunk_text(clean)
-    all_chunks.extend(chunks)
-
-vectors = encode_batch(all_chunks)
-
-store.add(vectors, all_chunks)
-```
-
----
-
-# 🔍 5. Query
-
-```python
-# main.py (search phase)
-
-from kg.pipeline.search_pipeline import search
-
-query = "xử lý dữ liệu lớn"
-results = search(query, store)
-
-for r in results:
-    print(r)
-```
-
----
-
-# ⚠️ 6. Những thứ BẮT BUỘC nếu chạy thật
-
-## 🔥 Persist index
-
-```python
-faiss.write_index(store.index, "index.faiss")
-```
-
-Load lại:
-
-```python
-store.index = faiss.read_index("index.faiss")
-```
-
----
-
-## 🔥 Batch insert (KHÔNG loop từng câu)
-
-```python
-encode_batch(list_texts)
-```
-
----
-
-## 🔥 Deduplicate trước khi add
-
----
-
-## 🔥 Metadata (rất quan trọng)
-
-Sửa:
-
-```python
-self.texts = []
-```
-
-→
-
-```python
-self.data = [
-  {
-    "text": "...",
-    "doc_id": "...",
-    "source": "..."
-  }
-]
-```
-
----
-
-# 🧠 7. Version production chuẩn hơn (nâng cấp)
-
-## Level 2:
-
-* BM25 + Vector (Hybrid search)
-* Redis cache query
-* Pagination
-
-## Level 3:
-
-* Qdrant / Weaviate
-* Cross-encoder reranker
-* Multi-language
-
----
-
-# 🔥 8. Tóm tắt
-
-Pipeline chuẩn:
+* Không cần 1 triệu câu
+* Cần **1000 câu đúng, sạch, rõ cấu trúc**
 
 ```text
-Document → Clean → Chunk → Embed → FAISS index
-
-Query → Embed → Top-K → Re-rank → Filter → Result
+Chất lượng > số lượng
 ```
 
 ---
 
-# 🎯 Kết luận
+# 🎯 6) Kết luận
 
-Đây là phiên bản:
+## Bộ nhãn tối thiểu:
 
-* ✔ Đúng chuẩn industry
-* ✔ Scale được
-* ✔ Thay thế hoàn toàn pipeline cũ
-* ✔ Có thể gắn API ngay
+```text
+SUBJECT
+ACTION
+OBJECT
++ (ATTR, TIME, LOC)
++ (NEGATION, CONDITION, COREF)
++ relation chuẩn hoá
+```
+
+## Dataset:
+
+```text
+1000 câu
+→ auto label
+→ LLM hỗ trợ
+→ người sửa nhanh
+```
 
 ---
 
-Nếu cần bước tiếp theo:
+Nếu muốn bước tiếp:
 
-* build API (FastAPI)
-* gắn vào Nginx + Docker
-* hoặc nối vào chatbot (RAG)
+có thể cung cấp:
 
-→ chỉ cần nói rõ use-case, sẽ thiết kế tiếp đúng hướng.
+* script tạo dataset tự động từ Wikipedia
+* UI nhỏ để gán nhãn nhanh (web local)
+* hoặc code fine-tune parser mini (LoRA) cho tiếng Việt
