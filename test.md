@@ -1,552 +1,315 @@
-OK, đây là **Validation Layer + Criteria** ở mức **production-ready** cho hệ hybrid của bạn. Mục tiêu:
-**Learning tạo candidate → Validation quyết định → KG chỉ nhận cái “đủ chín”**.
+Dưới đây là **pipeline thực hành hoàn chỉnh** mình khuyên dùng lúc này: nhẹ, hiệu quả, không tự build lại mọi thứ, nhưng vẫn giữ lõi riêng của bạn.
 
----
-
-# 🧠 1. Vai trò Validation Layer
+Mình chọn model chính:
 
 ```text
-Input: candidate (pattern / concept / relation) + evidence
-Output: verdict {REJECT | QUARANTINE | ACCEPT} + score + reason
+bkai-foundation-models/vietnamese-bi-encoder
+```
+
+Lý do: là sentence-transformers cho tiếng Việt, output vector 768 chiều, phù hợp semantic search / clustering, nhẹ hơn các model BGE-M3 0.6B. ([Hugging Face][1])
+Nếu máy bạn khỏe hơn, có thể đổi sang `AITeamVN/Vietnamese_Embedding`, model fine-tune từ BGE-M3 cho tiếng Việt, sequence length 2048, output 1024 chiều nhưng nặng hơn. ([Hugging Face][2])
+
+---
+
+# Pipeline thực hành
+
+```mermaid
+graph LR
+A[Input câu tiếng Việt] --> B[Embedding Layer]
+B --> C[Memory Store]
+C --> D[Pattern Candidate]
+D --> E[Validation Layer]
+E --> F[State Machine]
+F --> G[Knowledge Store]
+G --> H[Inference]
 ```
 
 ---
 
-# 🧩 2. Chuẩn dữ liệu đầu vào (Candidate)
+# 1. Cài thư viện
 
-```json
-{
-  "type": "pattern",          // pattern | concept | relation
-  "value": "X hiểu Y",
-  "examples": [
-    "LLM hiểu dữ liệu lớn",
-    "AI hiểu ngôn ngữ tự nhiên"
-  ],
-  "source": ["human","ai"],
-  "teacher_signals": {
-    "vncorenlp": {...},
-    "underthesea": {...},
-    "embedding": {...}
-  },
-  "stats": {
-    "freq": 18,
-    "unique_contexts": 7,
-    "age": 120               // số lần update đã sống
-  }
-}
+```bash
+cd ~/myapp
+python3 -m venv venv
+source venv/bin/activate
+
+pip install sentence-transformers numpy scikit-learn
 ```
 
 ---
 
-# 🔥 3. Bộ tiêu chí (Criteria)
+# 2. Cấu trúc thư mục
 
-## 3.1 Coverage (độ phủ)
-
-```text
-C = min(1, freq / FREQ_TARGET)
+```bash
+kg/
+├── main.py
+├── data/
+│   ├── train_cases.jsonl
+│   └── eval_cases.jsonl
+├── embedding/
+│   ├── __init__.py
+│   └── embedding_engine.py
+├── memory/
+│   ├── __init__.py
+│   └── memory_store.py
+├── validation/
+│   ├── __init__.py
+│   └── validation_gate.py
+├── state/
+│   ├── __init__.py
+│   └── state_machine.py
+├── knowledge/
+│   ├── __init__.py
+│   └── knowledge_store.py
+└── utils/
+    ├── __init__.py
+    └── jsonl_utils.py
 ```
 
-* `FREQ_TARGET` mặc định: 20
-* Ý nghĩa: xuất hiện đủ nhiều chưa?
+Tạo nhanh:
 
----
-
-## 3.2 Consistency (ổn định ngữ cảnh)
-
-Dùng embedding (cosine) giữa các ví dụ:
-
-```text
-S = average_pairwise_similarity(examples)
-```
-
-* tốt: ≥ 0.7
-* cảnh báo: 0.5–0.7
-* xấu: < 0.5
-
----
-
-## 3.3 Contrastiveness (khả năng phân biệt)
-
-So với negative set (tự sinh):
-
-```text
-D = 1 - average_similarity(positive, negative)
-```
-
-* tốt: ≥ 0.6
-* thấp → pattern mơ hồ
-
----
-
-## 3.4 Teacher Agreement (đồng thuận “giáo viên”)
-
-So khớp tín hiệu từ VnCoreNLP và underthesea:
-
-```text
-T = weighted_agreement(vncorenlp, underthesea)
-```
-
-* ví dụ: vị trí “động từ” trùng nhau, chunk tương tự
-* tốt: ≥ 0.7
-
----
-
-## 3.5 Generalization (khả năng áp dụng mới)
-
-Sinh câu mới (AI hoặc template), đo match:
-
-```text
-G = success_rate_on_generated_cases
-```
-
-* tốt: ≥ 0.7
-
----
-
-## 3.6 Noise / Anomaly (phát hiện bẩn)
-
-Rule nhẹ để bắt “rác”:
-
-* verb chứa token object phổ biến (vd: “hiểu dữ”)
-* span quá dài/ngắn bất thường
-* ký tự lạ
-
-```text
-N = anomaly_score ∈ [0,1]  (càng cao càng xấu)
-```
-
-* chấp nhận: ≤ 0.3
-
----
-
-## 3.7 Temporal Stability (ổn định theo thời gian)
-
-```text
-H = stability_over_updates
-```
-
-* đo độ biến thiên của S, D theo các batch gần nhất
-* tốt: ≥ 0.6
-
----
-
-# 🧮 4. Hàm chấm điểm tổng
-
-Chuẩn hoá về [0,1]:
-
-```text
-score =
-  0.20*C +
-  0.20*S +
-  0.15*D +
-  0.15*T +
-  0.15*G +
-  0.10*H -
-  0.15*N
+```bash
+mkdir -p kg/{data,embedding,memory,validation,state,knowledge,utils}
+touch kg/__init__.py
+touch kg/{embedding,memory,validation,state,knowledge,utils}/__init__.py
 ```
 
 ---
 
-# 🎯 5. Ngưỡng quyết định
-
-| Verdict        | Điều kiện                |
-| -------------- | ------------------------ |
-| **ACCEPT**     | score ≥ 0.75 AND N ≤ 0.3 |
-| **QUARANTINE** | 0.5 ≤ score < 0.75       |
-| **REJECT**     | score < 0.5 OR N > 0.6   |
-
----
-
-# 🧠 6. Trạng thái (State Machine gắn với Validation)
-
-```text
-BIẾT   → nếu C ≥ 0.3
-THÔNG  → nếu C≥0.6 & S≥0.65 & D≥0.55
-HIỂU   → nếu S≥0.7 & D≥0.6 & T≥0.7 & G≥0.6
-THẤU   → nếu G≥0.75 & H≥0.6 & score≥0.8
-```
-
----
-
-# 🧪 7. Ví dụ đánh giá
-
-```json
-{
-  "pattern": "X hiểu Y",
-  "metrics": {
-    "C": 0.9,
-    "S": 0.78,
-    "D": 0.64,
-    "T": 0.72,
-    "G": 0.70,
-    "H": 0.68,
-    "N": 0.1
-  },
-  "score": 0.79,
-  "verdict": "ACCEPT",
-  "state": "HIỂU"
-}
-```
-
----
-
-# 🔧 8. Code khung
+# 3. `kg/embedding/embedding_engine.py`
 
 ```python
-def validate(candidate):
-    C = coverage(candidate)
-    S = consistency(candidate)
-    D = contrastiveness(candidate)
-    T = teacher_agreement(candidate)
-    G = generalization(candidate)
-    H = temporal_stability(candidate)
-    N = anomaly_score(candidate)
+from sentence_transformers import SentenceTransformer
+import numpy as np
 
-    score = (
-        0.20*C + 0.20*S + 0.15*D +
-        0.15*T + 0.15*G + 0.10*H -
-        0.15*N
-    )
 
-    if score >= 0.75 and N <= 0.3:
-        verdict = "ACCEPT"
-    elif score >= 0.5:
-        verdict = "QUARANTINE"
+MODEL_NAME = "bkai-foundation-models/vietnamese-bi-encoder"
+
+_model = None
+
+
+def get_model():
+    global _model
+    if _model is None:
+        _model = SentenceTransformer(MODEL_NAME)
+    return _model
+
+
+def encode_text(text: str) -> list[float]:
+    model = get_model()
+    vec = model.encode(text, normalize_embeddings=True)
+    return vec.tolist()
+
+
+def cosine(a: list[float], b: list[float]) -> float:
+    va = np.array(a)
+    vb = np.array(b)
+    return float(np.dot(va, vb))
+```
+
+---
+
+# 4. `kg/utils/jsonl_utils.py`
+
+```python
+import json
+from pathlib import Path
+
+
+def read_jsonl(path: str):
+    p = Path(path)
+    if not p.exists():
+        return []
+
+    rows = []
+    with open(p, "r", encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if line:
+                rows.append(json.loads(line))
+    return rows
+
+
+def append_jsonl(path: str, item: dict):
+    p = Path(path)
+    p.parent.mkdir(parents=True, exist_ok=True)
+
+    with open(p, "a", encoding="utf-8") as f:
+        f.write(json.dumps(item, ensure_ascii=False) + "\n")
+```
+
+---
+
+# 5. `kg/memory/memory_store.py`
+
+```python
+from pathlib import Path
+from kg.utils.jsonl_utils import append_jsonl, read_jsonl
+from kg.embedding.embedding_engine import encode_text
+
+
+MEMORY_PATH = "kg/memory/memory.jsonl"
+
+
+def add_memory(text: str, source: str = "manual"):
+    item = {
+        "text": text,
+        "source": source,
+        "vector": encode_text(text)
+    }
+
+    append_jsonl(MEMORY_PATH, item)
+    return item
+
+
+def load_memory():
+    return read_jsonl(MEMORY_PATH)
+```
+
+---
+
+# 6. `kg/validation/validation_gate.py`
+
+```python
+from kg.embedding.embedding_engine import cosine
+
+
+def semantic_score(text: str, memory_item: dict, vector: list[float]) -> float:
+    return cosine(vector, memory_item["vector"])
+
+
+def validate_understanding(text: str, vector: list[float], memory: list[dict]):
+    if not memory:
+        return {
+            "verdict": "BIET",
+            "score": 0.0,
+            "nearest": []
+        }
+
+    scored = []
+    for item in memory:
+        sim = semantic_score(text, item, vector)
+        scored.append({
+            "text": item["text"],
+            "score": round(sim, 4)
+        })
+
+    scored = sorted(scored, key=lambda x: x["score"], reverse=True)
+    top = scored[:5]
+    best = top[0]["score"]
+
+    if best >= 0.82:
+        verdict = "HIEU"
+    elif best >= 0.68:
+        verdict = "THONG"
     else:
-        verdict = "REJECT"
+        verdict = "BIET"
 
     return {
-        "score": round(score, 3),
         "verdict": verdict,
-        "metrics": {"C":C,"S":S,"D":D,"T":T,"G":G,"H":H,"N":N}
+        "score": round(best, 4),
+        "nearest": top
     }
 ```
 
 ---
 
-# 🔁 9. Luồng tích hợp
-
-```text
-Learning Core
-  → sinh candidate
-  → validate()
-      → REJECT      → bỏ
-      → QUARANTINE  → giữ theo dõi
-      → ACCEPT      → ghi vào KG
-KG
-  → dùng cho inference
-  → phản hồi ngược (feedback) cho Learning
-```
-
----
-
-# ⚠️ 10. Lưu ý vận hành
-
-* Không hạ ngưỡng quá sớm (tránh “nhiễm bẩn KG”)
-* Quarantine phải có TTL (vd: 3–5 vòng update, không cải thiện thì loại)
-* Eval set cố định để đo drift
-* Teacher chỉ là “phiếu tham khảo”, không phải chân lý
-
----
-
-# 🎯 1 câu chốt
-
-```text
-Validation Layer = nơi quyết định cái gì được gọi là “tri thức”.
-```
-
----
-
- Dưới đây là **bộ Evaluation Datasets + Auto Generator** để bạn có thể đo được **C, D, G** thật (không giả lập) và nuôi Validation Layer ổn định.
-
----
-
-# 🧠 1. Cấu trúc dữ liệu
-
-```bash
-kg/data/
-├── eval/
-│   ├── paraphrase.jsonl        # gần nghĩa / không gần nghĩa (S)
-│   ├── contrast.jsonl          # positive vs negative (D)
-│   ├── logic.jsonl             # cause / condition / contrast (logic)
-│   ├── role.jsonl              # entity/behavior/concept (role nhẹ)
-│   └── generalization.jsonl    # áp dụng pattern sang case mới (G)
-│
-├── seeds/
-│   ├── patterns.json           # seed pattern
-│   ├── templates.json          # template sinh câu
-│   └── lexicon.json            # danh sách entity/verb/object theo domain
-│
-└── generated/
-    ├── train_cases.jsonl
-    └── eval_generated.jsonl
-```
-
-> Dùng `.jsonl` (mỗi dòng 1 JSON) để dễ stream/append.
-
----
-
-# 🧩 2. Schema từng tập
-
-## 2.1 Paraphrase (S – Consistency)
-
-```json
-{"id":"p_0001",
- "a":"LLM hiểu dữ liệu lớn",
- "b":"AI xử lý dữ liệu quy mô lớn",
- "label":1,
- "domain":"ai"}
-```
-
-```json
-{"id":"p_0002",
- "a":"LLM hiểu dữ liệu lớn",
- "b":"Docker chạy container",
- "label":0,
- "domain":"ai"}
-```
-
----
-
-## 2.2 Contrast (D – phân biệt)
-
-```json
-{"id":"c_0001",
- "positive":"AI xử lý ngôn ngữ tự nhiên",
- "negative":"Hệ thống lưu trữ dữ liệu",
- "pattern":"X hiểu/ xử lý Y",
- "label":1}
-```
-
----
-
-## 2.3 Logic (nhân quả/điều kiện/nhượng bộ)
-
-```json
-{"id":"l_0001",
- "text":"Vì dữ liệu ít nên mô hình học kém",
- "type":"cause_effect",
- "spans":{"cause":"dữ liệu ít","effect":"mô hình học kém"}}
-```
-
-```json
-{"id":"l_0002",
- "text":"Nếu dữ liệu đủ thì mô hình học tốt",
- "type":"condition",
- "spans":{"cond":"dữ liệu đủ","result":"mô hình học tốt"}}
-```
-
-```json
-{"id":"l_0003",
- "text":"Mặc dù dữ liệu ít nhưng mô hình vẫn học tốt",
- "type":"contrast",
- "spans":{"a":"dữ liệu ít","b":"mô hình vẫn học tốt"}}
-```
-
----
-
-## 2.4 Role (nhẹ, không hard rule)
-
-```json
-{"id":"r_0001",
- "text":"LLM hiểu dữ liệu lớn",
- "roles":[
-   {"span":"LLM","role":"entity_like"},
-   {"span":"hiểu","role":"behavior_like"},
-   {"span":"dữ liệu lớn","role":"concept_like"}
- ]}
-```
-
----
-
-## 2.5 Generalization (G)
-
-```json
-{"id":"g_0001",
- "pattern":"X hiểu Y",
- "train_examples":[
-   "LLM hiểu dữ liệu lớn",
-   "AI hiểu ngôn ngữ tự nhiên"
- ],
- "test_case":"Robot hiểu tín hiệu cảm biến",
- "expect_match":true}
-```
-
----
-
-# 🔧 3. Seeds để sinh dữ liệu
-
-## 3.1 patterns.json
-
-```json
-{
-  "patterns": [
-    "X hiểu Y",
-    "X xử lý Y",
-    "X học từ Y",
-    "vì X nên Y",
-    "nếu X thì Y",
-    "mặc dù X nhưng Y"
-  ]
-}
-```
-
-## 3.2 templates.json
-
-```json
-{
-  "simple": [
-    "{X} hiểu {Y}",
-    "{X} xử lý {Y}",
-    "{X} học từ {Y}"
-  ],
-  "logic": [
-    "vì {X} nên {Y}",
-    "nếu {X} thì {Y}",
-    "mặc dù {X} nhưng {Y}"
-  ]
-}
-```
-
-## 3.3 lexicon.json (domain AI/dev ví dụ)
-
-```json
-{
-  "entities": ["LLM","AI","Mô hình","Hệ thống","Robot"],
-  "verbs": ["hiểu","xử lý","học","lưu trữ"],
-  "objects": [
-    "dữ liệu lớn",
-    "ngôn ngữ tự nhiên",
-    "tín hiệu cảm biến",
-    "thông tin người dùng"
-  ],
-  "conditions": [
-    "dữ liệu ít",
-    "dữ liệu đủ",
-    "tài nguyên hạn chế"
-  ],
-  "results": [
-    "mô hình học kém",
-    "mô hình học tốt",
-    "hiệu suất giảm",
-    "kết quả chính xác"
-  ]
-}
-```
-
----
-
-# ⚙️ 4. Auto Generator (Python)
+# 7. `kg/state/state_machine.py`
 
 ```python
-import json, random, uuid, itertools
-from pathlib import Path
+STATE_RANK = {
+    "BIET": 1,
+    "THONG": 2,
+    "HIEU": 3,
+    "THAU": 4
+}
 
-ROOT = Path("kg/data")
-SEEDS = ROOT / "seeds"
-OUT_GEN = ROOT / "generated"
 
-def load_json(p): return json.loads(Path(p).read_text(encoding="utf-8"))
+def choose_state(validation_result: dict):
+    return validation_result["verdict"]
+```
 
-def rid(prefix): return f"{prefix}_{uuid.uuid4().hex[:8]}"
+---
 
-def gen_simple(templates, lex, n=200):
-    rows = []
-    for _ in range(n):
-        t = random.choice(templates["simple"])
-        X = random.choice(lex["entities"])
-        Y = random.choice(lex["objects"])
-        text = t.format(X=X, Y=Y)
-        rows.append({
-            "id": rid("s"),
-            "text": text,
-            "pattern_hint": t,
-            "domain": "ai"
-        })
-    return rows
+# 8. `kg/knowledge/knowledge_store.py`
 
-def gen_logic(templates, lex, n=200):
-    rows = []
-    for _ in range(n):
-        t = random.choice(templates["logic"])
-        X = random.choice(lex["conditions"])
-        Y = random.choice(lex["results"])
-        text = t.format(X=X, Y=Y)
-        rows.append({
-            "id": rid("l"),
-            "text": text,
-            "type_hint": t.split()[0],  # vì / nếu / mặc dù
-            "domain": "ai"
-        })
-    return rows
+```python
+from kg.utils.jsonl_utils import append_jsonl, read_jsonl
 
-def gen_paraphrase(simple_rows, n=200):
-    # tạo cặp gần nghĩa (thay verb tương đương nhẹ)
-    verb_map = {"hiểu":"xử lý", "xử lý":"hiểu", "học":"hiểu"}
-    rows = []
-    for _ in range(n):
-        a = random.choice(simple_rows)["text"]
-        parts = a.split()
-        if len(parts) >= 3 and parts[1] in verb_map:
-            b = a.replace(parts[1], verb_map[parts[1]])
-            rows.append({"id": rid("p"), "a": a, "b": b, "label": 1})
-        # negative
-        c = random.choice(simple_rows)["text"]
-        rows.append({"id": rid("p"), "a": a, "b": c, "label": 0})
-    return rows
+KNOWLEDGE_PATH = "kg/knowledge/knowledge.jsonl"
 
-def gen_contrast(simple_rows, n=200):
-    rows = []
-    for _ in range(n):
-        pos = random.choice(simple_rows)["text"]
-        neg = random.choice(simple_rows)["text"]
-        rows.append({
-            "id": rid("c"),
-            "positive": pos,
-            "negative": neg,
-            "pattern": "X hiểu/ xử lý Y",
-            "label": 1
-        })
-    return rows
 
-def gen_generalization(simple_rows, n=200):
-    rows = []
-    for _ in range(n):
-        train = random.sample(simple_rows, k=min(2, len(simple_rows)))
-        test = random.choice(simple_rows)["text"]
-        rows.append({
-            "id": rid("g"),
-            "pattern": "X hiểu Y",
-            "train_examples": [t["text"] for t in train],
-            "test_case": test,
-            "expect_match": True
-        })
-    return rows
+def add_knowledge(text: str, state: str, score: float, evidence: list[dict]):
+    item = {
+        "text": text,
+        "state": state,
+        "score": score,
+        "evidence": evidence
+    }
 
-def save_jsonl(path, rows):
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with open(path, "w", encoding="utf-8") as f:
-        for r in rows:
-            f.write(json.dumps(r, ensure_ascii=False) + "\n")
+    append_jsonl(KNOWLEDGE_PATH, item)
+    return item
+
+
+def load_knowledge():
+    return read_jsonl(KNOWLEDGE_PATH)
+```
+
+---
+
+# 9. `kg/main.py`
+
+```python
+import sys
+import json
+
+from kg.embedding.embedding_engine import encode_text
+from kg.memory.memory_store import add_memory, load_memory
+from kg.validation.validation_gate import validate_understanding
+from kg.state.state_machine import choose_state
+from kg.knowledge.knowledge_store import add_knowledge
+
+
+def run(text: str):
+    memory = load_memory()
+    vector = encode_text(text)
+
+    validation = validate_understanding(text, vector, memory)
+    state = choose_state(validation)
+
+    memory_item = add_memory(text)
+
+    knowledge_item = None
+    if state in ["HIEU", "THAU"]:
+        knowledge_item = add_knowledge(
+            text=text,
+            state=state,
+            score=validation["score"],
+            evidence=validation["nearest"]
+        )
+
+    return {
+        "input": text,
+        "state": state,
+        "validation": validation,
+        "saved_memory": {
+            "text": memory_item["text"],
+            "vector_dim": len(memory_item["vector"])
+        },
+        "saved_knowledge": knowledge_item
+    }
+
 
 def main():
-    templates = load_json(SEEDS/"templates.json")
-    lex = load_json(SEEDS/"lexicon.json")
+    if len(sys.argv) < 2:
+        print('Usage: python3 -m kg.main "câu tiếng Việt"')
+        return
 
-    simple = gen_simple(templates, lex, n=500)
-    logic = gen_logic(templates, lex, n=300)
+    text = " ".join(sys.argv[1:])
+    result = run(text)
 
-    paraphrase = gen_paraphrase(simple, n=400)
-    contrast = gen_contrast(simple, n=400)
-    generalization = gen_generalization(simple, n=300)
+    print(json.dumps(result, ensure_ascii=False, indent=2))
 
-    save_jsonl(OUT_GEN/"train_cases.jsonl", simple + logic)
-    save_jsonl(ROOT/"eval/paraphrase.jsonl", paraphrase)
-    save_jsonl(ROOT/"eval/contrast.jsonl", contrast)
-    save_jsonl(ROOT/"eval/generalization.jsonl", generalization)
-
-    # logic eval có thể tách riêng từ logic rows
-    save_jsonl(ROOT/"eval/logic.jsonl", logic)
 
 if __name__ == "__main__":
     main()
@@ -554,34 +317,73 @@ if __name__ == "__main__":
 
 ---
 
-# 🧪 5. Gắn vào Validation Layer
+# 10. Test thực tế
 
-* **S (Consistency)**: dùng `eval/paraphrase.jsonl` → accuracy ≥ 0.8
-* **D (Contrast)**: dùng `eval/contrast.jsonl` → accuracy ≥ 0.75
-* **G (Generalization)**: dùng `eval/generalization.jsonl` → success ≥ 0.7
-* **Logic**: dùng `eval/logic.jsonl` → accuracy ≥ 0.6 (ban đầu)
+Reset:
+
+```bash
+rm -f kg/memory/memory.jsonl
+rm -f kg/knowledge/knowledge.jsonl
+```
+
+Nạp vài câu:
+
+```bash
+python3 -m kg.main "LLM hiểu dữ liệu lớn"
+python3 -m kg.main "AI xử lý dữ liệu quy mô lớn"
+python3 -m kg.main "Mô hình học từ dữ liệu lớn"
+```
+
+Test câu mới:
+
+```bash
+python3 -m kg.main "Hệ thống nắm bắt thông tin quy mô lớn"
+```
+
+Nếu nearest score cao, nó sẽ lên `THONG` hoặc `HIEU`.
 
 ---
 
-# 📏 6. Khối lượng khuyến nghị
+# Ý nghĩa kết quả
 
-* Starter: 1–2k dòng (tự sinh)
-* Usable: 5–10k dòng (mix tự sinh + thủ công 20–30%)
-* Mỗi pattern: ~150–250 câu (đủ lên HIỂU/THẤU)
+Output không nói “tôi chắc chắn hiểu”. Nó nói:
 
----
+```json
+{
+  "state": "HIEU",
+  "score": 0.84,
+  "nearest": [
+    {
+      "text": "AI xử lý dữ liệu quy mô lớn",
+      "score": 0.86
+    }
+  ]
+}
+```
 
-# ⚠️ 7. Lưu ý quan trọng
-
-* Tự sinh phải **đa dạng template** (tránh overfit cấu trúc)
-* Trộn **20–30% dữ liệu người viết** vào eval (chống bias AI)
-* Giữ **eval cố định** (đo drift theo thời gian)
-
----
-
-# 🎯 1 câu chốt
+Tức là hệ hiểu theo kiểu:
 
 ```text
-Dataset = “bài kiểm tra” của hệ học.
-Không có bài kiểm tra tốt → không có “HIỂU” thật.
+Câu mới gần nghĩa với những trải nghiệm đã học.
 ```
+
+Đây là bước đầu đúng hơn rất nhiều so với tự chunk/rule.
+
+---
+
+# Tóm tắt
+
+Pipeline này:
+
+```text
+Không tự build tokenizer
+Không tự chunk
+Không viết lexicon
+Dùng model nhỏ làm semantic sensor
+CLE giữ vai trò memory + validation + state + knowledge
+```
+
+Đây là bản thực hành tốt nhất để bạn bắt đầu lại sạch.
+
+[1]: https://huggingface.co/bkai-foundation-models/vietnamese-bi-encoder?utm_source=chatgpt.com "bkai-foundation-models/vietnamese-bi-encoder"
+[2]: https://huggingface.co/AITeamVN/Vietnamese_Embedding?utm_source=chatgpt.com "AITeamVN/Vietnamese_Embedding"
