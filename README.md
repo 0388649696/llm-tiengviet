@@ -1,15 +1,14 @@
 # llm-tiengviet
 ## Giới thiệu mô hình
-Mô hình này không tiếp cận ngôn ngữ theo cách truyền thống (chỉ sinh câu),
-mà đi theo hướng:
-**Text → Experience → Pattern → Role → Graph**
+ Phase 1: train tokenizer riêng tiếng Việt từ raw corpus. Không dùng VnCoreNLP/underthesea.
 
-Thay vì coi văn bản là chuỗi chữ, mô hình coi văn bản là:
-một hệ thống gồm:
-- thành phần ý nghĩa (nói về cái gì)
-- hành vi ngôn ngữ (đang làm gì với câu)
-- khái niệm (điều đang được nói tới)
-- quan hệ (các khái niệm liên kết với nhau ra sao)
+Phase 2: train sentence encoder nhỏ bằng contrastive learning.
+
+Phase 3: build evaluator: 100–300 cặp câu Việt do bạn tự viết để đo “gần nghĩa / khác nghĩa / nhân quả”.
+
+Phase 4: dùng semantic clusters để sinh KG.
+
+Phase 5: nếu cần sinh câu, mới gắn một decoder nhỏ hoặc dùng LLM ngoài làm verbalizer.
 ##### 📌 Quy trình hoạt động:
 ```mermaid
 graph LR
