@@ -175,41 +175,36 @@ emty
 ## B. Thành phần nâng cao: (optinal)
 
 # 2. Chương trình
-#### 📂Thư mục: 
+#### 📂Thư mục myapp: 
 ```
-/myapp/
+kg/
+├── data/
+│   ├── train_cases.json
+│   ├── eval_cases.json
+│   └── generated_cases.json
 │
-├── kg/
+├── teachers/
+│   ├── vncorenlp_teacher.py
+│   ├── underthesea_teacher.py
+│   ├── embedding_teacher.py
+│   └── ai_generator.py
 │
-│   ├── data/                     # dữ liệu tối thiểu
-│   │   └── stopwords.txt
+├── memory/
+│   └── memory_store.py
 │
-│   ├── parsers/                  # parser nhẹ
-│   │   └── parser_l1_l2.py
+├── pattern/
+│   └── pattern_learner.py
 │
-│   ├── experience/               # 🔥 TRỌNG TÂM
-│   │   ├── experience_store.py
-│   │   ├── pattern_miner.py
-│   │   ├── role_emergence.py
-│   │   └── dynamic_lexicon.py
+├── evaluation/
+│   └── evaluation_gate.py
 │
-│   ├── concept/                  # L3
-│   │   └── extractor.py
+├── state/
+│   └── state_machine.py
 │
-│   ├── relation/                 # L4
-│   │   └── extractor.py
+├── knowledge/
+│   └── knowledge_store.py
 │
-│   ├── graph/                    # graph
-│   │   ├── graph_store.py
-│   │   └── graph.json
-│
-│   ├── utils/
-│   │   ├── path_utils.py
-│   │   └── text_utils.py
-│
-│   ├── main.py                   # pipeline chính
-│
-└── README.md
+└── main.py
 ```
 
 #### Giai đoạn hiện tại:
