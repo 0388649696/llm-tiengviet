@@ -298,3 +298,52 @@ có thể cung cấp:
 * script tạo dataset tự động từ Wikipedia
 * UI nhỏ để gán nhãn nhanh (web local)
 * hoặc code fine-tune parser mini (LoRA) cho tiếng Việt
+
+## B. Thư mục:
+```
+myapp/
+└── kg/
+    ├── main.py                  # entry chạy pipeline
+    │
+    ├── config/
+    │   └── settings.py          # config chung (model, threshold...)
+    │
+    ├── data/
+    │   ├── raw/                 # text gốc (paper, article)
+    │   ├── processed/           # text đã xử lý
+    │   └── dataset/             # dataset vàng (jsonl)
+    │
+    ├── preprocess/
+    │   ├── cleaner.py           # làm sạch text
+    │   └── splitter.py          # tách câu
+    │
+    ├── parser/
+    │   ├── pos.py               # POS tagging (tạm đơn giản)
+    │   ├── dependency.py        # (sau này gắn parser thật)
+    │   └── semantic_roles.py    # SUBJECT/ACTION/OBJECT
+    │
+    ├── coref/
+    │   └── resolver.py          # resolve “nó” → subject
+    │
+    ├── triple/
+    │   └── extractor.py         # tạo (subject, relation, object)
+    │
+    ├── embedding/
+    │   └── embedder.py          # sentence embedding
+    │
+    ├── clustering/
+    │   └── clusterer.py         # gom nhóm câu
+    │
+    ├── graph/
+    │   ├── builder.py           # xây graph tri thức
+    │   └── tree.py              # xuất cây kiến thức
+    │
+    ├── evaluation/
+    │   └── eval.py              # đánh giá sau này
+    │
+    ├── utils/
+    │   └── io.py                # đọc/ghi file
+    │
+    └── tests/
+        └── test_pipeline.py
+```
